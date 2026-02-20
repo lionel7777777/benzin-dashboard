@@ -1,5 +1,5 @@
 use axum::{extract::Form, extract::Request, response::{Html, Redirect, IntoResponse}, routing::{get, post}, Router};
-use axum::http::{HeaderMap, HeaderValue, header::SET_COOKIE};
+use axum::http::{HeaderMap, HeaderValue, header::{CACHE_CONTROL, SET_COOKIE}};
 use serde::Deserialize;
 use serde_json::Value;
 use std::env;
@@ -16,6 +16,8 @@ fn http_client() -> reqwest::Client {
 }
 
 const TANKERKOENIG_BASE: &str = "https://creativecommons.tankerkoenig.de/json";
+/// Dein Tankerkönig API-Key (kann per TANKERKOENIG_API_KEY überschrieben werden).
+const TANKERKOENIG_API_KEY_DEFAULT: &str = "4f98d489-ed79-46e9-93a9-f0e79ab92add";
 // Weiterstadt, Hessen Koordinaten: 49.91°N, 8.58°E
 const WEITERSTADT_LAT: &str = "49.91";
 const WEITERSTADT_LNG: &str = "8.58";
@@ -30,8 +32,8 @@ struct PriceData {
     updated: String,
 }
 
-/// Lädt die spezifische Lenz Energie Tankstelle in Weiterstadt über list.php API.
-/// Antwortformat: {"ok":true,"stations":[{"id":"...","name":"...","brand":"...","e5":1.779,"e10":1.719,"diesel":1.679,...},...]}
+/// Lädt die Lenz Energie Tankstelle in Weiterstadt, Hessen – immer live von der API (kein Caching).
+/// Antwortformat: {"ok":true,"stations":[{"id":"...","name":"...","brand":"...","e5":...,"e10":...,"diesel":...},...]}
 async fn fetch_lenz_energie_station(api_key: &str) -> Option<PriceData> {
     let url = format!(
         "{}/list.php?lat={}&lng={}&rad={}&sort=dist&type=all&apikey={}",
@@ -228,7 +230,7 @@ async fn dashboard(request: Request) -> impl IntoResponse {
         return login_page().into_response();
     }
     let api_key = env::var("TANKERKOENIG_API_KEY")
-        .unwrap_or_else(|_| "4f98d489-ed79-46e9-93a9-f0e79ab92add".to_string()); // Fallback API-Key
+        .unwrap_or_else(|_| TANKERKOENIG_API_KEY_DEFAULT.to_string());
 
     let default_fallback = PriceData {
         station_name: "Lenz Energie — Lenz Energie AG".to_string(),
@@ -238,18 +240,19 @@ async fn dashboard(request: Request) -> impl IntoResponse {
         updated: "–".to_string(),
     };
     
+    // Immer aktuelle Daten: bei jedem Aufruf frisch von der API (kein Caching).
     let data = fetch_lenz_energie_station(&api_key)
         .await
         .unwrap_or(default_fallback);
 
-    Html(format!(
+    let mut response = Html(format!(
         r#"
 <!DOCTYPE html>
 <html lang="de">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta http-equiv="refresh" content="60">
+<meta http-equiv="refresh" content="30">
 <title>Kraftstoff Dashboard</title>
 <style>
     body {{
@@ -296,6 +299,12 @@ async fn dashboard(request: Request) -> impl IntoResponse {
         font-weight: 700;
         margin-top: 10px;
         color: #1c1c1e;
+    }}
+    .title-sub-small {{
+        font-size: 15px;
+        font-weight: 600;
+        margin-top: 4px;
+        color: #5c5c62;
     }}
     .fuel-row {{
         display: flex;
@@ -344,7 +353,8 @@ async fn dashboard(request: Request) -> impl IntoResponse {
         <div class="card">
             <div class="card-header">
                 <h1 class="title-main">Kraftstoffpreis aktuell</h1>
-                <div class="title-sub">Lenz Energie — Lenz Energie AG</div>
+                <div class="title-sub">Lenz Tankstelle Weiterstadt</div>
+                <div class="title-sub-small">Lenz Energie — Lenz Energie AG</div>
             </div>
 
             <div class="fuel-row">
@@ -387,7 +397,12 @@ async fn dashboard(request: Request) -> impl IntoResponse {
         },
         data.updated,
     ))
-    .into_response()
+    .into_response();
+    response.headers_mut().insert(
+        CACHE_CONTROL,
+        HeaderValue::from_static("no-store, no-cache, must-revalidate"),
+    );
+    response
 }
 
 #[tokio::main]
