@@ -161,70 +161,89 @@ async fn dashboard() -> Html<String> {
 <style>
     body {{
         margin: 0;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-        background: linear-gradient(135deg, #f0f0f0, #ffffff);
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        background: radial-gradient(circle at top, #ffffff 0%, #f2f2f7 40%, #e5e5ea 100%);
         display: flex;
         justify-content: center;
-        align-items: flex-start;
+        align-items: center;
         min-height: 100vh;
-        padding-top: 50px;
+        padding: 24px;
+        color: #111827;
     }}
     .container {{
-        width: 360px;
+        width: 380px;
+        max-width: 100%;
         display: flex;
         flex-direction: column;
-        gap: 20px;
+        gap: 16px;
     }}
     .card {{
-        background: rgba(255, 255, 255, 0.75);
-        backdrop-filter: blur(20px);
-        border-radius: 25px;
-        padding: 20px;
-        box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+        background: rgba(255, 255, 255, 0.7);
+        backdrop-filter: blur(24px);
+        -webkit-backdrop-filter: blur(24px);
+        border-radius: 28px;
+        padding: 20px 22px;
+        box-shadow: 0 18px 40px rgba(0,0,0,0.16);
+        border: 1px solid rgba(255, 255, 255, 0.6);
         text-align: center;
     }}
-    h1 {{
-        font-size: 28px;
+    .card-header {{
+        padding-bottom: 4px;
+    }}
+    .title-main {{
+        font-size: 24px;
         font-weight: 800;
-        color: #111;
+        letter-spacing: 0.02em;
         margin: 0;
+        color: #111111;
+    }}
+    .title-sub {{
+        font-size: 15px;
+        font-weight: 600;
+        margin-top: 6px;
+        color: #3a3a3c;
     }}
     .station {{
-        font-size: 24px;
-        font-weight: 700;
-        color: #111;
-        margin-bottom: 15px;
+        font-size: 13px;
+        font-weight: 500;
+        color: #8e8e93;
+        margin-top: 10px;
+        margin-bottom: 18px;
     }}
-    .fuel {{
-        font-size: 20px;
-        font-weight: 700;
-        margin: 10px 0;
+    .fuel-row {{
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        margin: 8px 0;
+    }}
+    .fuel-label {{
+        font-size: 16px;
+        font-weight: 600;
+        color: #1c1c1e;
+    }}
+    .fuel-label.e10 {{
+        color: #ff3b30;
     }}
     .price {{
-        font-size: 50px;
+        font-size: 32px;
         font-weight: 800;
-        color: #111;
-        margin-bottom: 5px;
+        color: #111111;
     }}
     .price.e10 {{
         color: #ff3b30;
-        font-weight: 900;
-    }}
-    .price.diesel {{
-        color: #007AFF;
     }}
     .updated {{
-        font-size: 16px;
-        font-weight: 700;
-        color: #333;
-        margin-top: 10px;
+        font-size: 13px;
+        font-weight: 500;
+        color: #3a3a3c;
+        margin-top: 8px;
     }}
     .footer {{
-        font-size: 14px;
-        color: #555;
-        font-weight: 700;
+        font-size: 12px;
+        color: #8e8e93;
+        font-weight: 500;
         text-align: center;
-        margin-top: 10px;
+        margin-top: 4px;
     }}
     .hint {{
         font-size: 12px;
@@ -236,24 +255,31 @@ async fn dashboard() -> Html<String> {
 <body>
     <div class="container">
         <div class="card">
-            <h1>Kraftstoffpreis aktuell</h1>
-        </div>
-        <div class="card">
-            <div class="station">{}</div>
+            <div class="card-header">
+                <h1 class="title-main">Kraftstoffpreis aktuell</h1>
+                <div class="title-sub">Tankstelle Weiterstadt</div>
+                <div class="station">Quelle: {}</div>
+            </div>
 
-            <div class="fuel">Super E5</div>
-            <div class="price">{}</div>
+            <div class="fuel-row">
+                <div class="fuel-label">Super E5</div>
+                <div class="price">{}</div>
+            </div>
 
-            <div class="fuel">Super E10</div>
-            <div class="price e10">{}</div>
+            <div class="fuel-row">
+                <div class="fuel-label e10">Super E10</div>
+                <div class="price e10">{}</div>
+            </div>
 
-            <div class="fuel">Diesel</div>
-            <div class="price diesel">{}</div>
+            <div class="fuel-row">
+                <div class="fuel-label">Diesel</div>
+                <div class="price">{}</div>
+            </div>
         </div>
         <div class="card">
             <div class="updated">Stand: {} · Aktualisierung alle 60 s</div>
             {}
-            <div class="footer">by Lionel</div>
+            <div class="footer">developed by Lionel</div>
         </div>
     </div>
 </body>
