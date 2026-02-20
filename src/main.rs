@@ -162,55 +162,56 @@ async fn dashboard() -> Html<String> {
     body {{
         margin: 0;
         font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-        background: radial-gradient(circle at top, #ffffff 0%, #f2f2f7 40%, #d1d1d6 100%);
+        background: radial-gradient(ellipse at 50% 20%, #e8e8ed 0%, #c7c7cc 50%, #a0a0a8 100%);
         display: flex;
         justify-content: center;
         align-items: center;
         min-height: 100vh;
-        padding: 24px;
+        padding: 28px;
         color: #111827;
     }}
     .container {{
-        width: 380px;
+        width: 420px;
         max-width: 100%;
         display: flex;
         flex-direction: column;
-        gap: 16px;
+        gap: 20px;
     }}
     .card {{
-        background: rgba(255, 255, 255, 0.55);
-        backdrop-filter: blur(30px) saturate(160%);
-        -webkit-backdrop-filter: blur(30px) saturate(160%);
-        border-radius: 28px;
-        padding: 20px 22px;
-        box-shadow: 0 22px 50px rgba(0,0,0,0.28);
-        border: 1px solid rgba(255, 255, 255, 0.9);
+        background: rgba(255, 255, 255, 0.38);
+        backdrop-filter: blur(42px) saturate(180%);
+        -webkit-backdrop-filter: blur(42px) saturate(180%);
+        border-radius: 32px;
+        padding: 28px 30px;
+        box-shadow: 0 28px 60px rgba(0,0,0,0.35),
+                    inset 0 1px 0 rgba(255,255,255,0.85);
+        border: 1px solid rgba(255, 255, 255, 0.75);
         text-align: center;
     }}
     .card-header {{
-        padding-bottom: 4px;
+        padding-bottom: 8px;
     }}
     .title-main {{
-        font-size: 26px;
+        font-size: 32px;
         font-weight: 900;
         letter-spacing: 0.03em;
         margin: 0;
         color: #000000;
     }}
     .title-sub {{
-        font-size: 16px;
+        font-size: 20px;
         font-weight: 700;
-        margin-top: 6px;
+        margin-top: 10px;
         color: #1c1c1e;
     }}
     .fuel-row {{
         display: flex;
         align-items: baseline;
         justify-content: space-between;
-        margin: 8px 0;
+        margin: 14px 0;
     }}
     .fuel-label {{
-        font-size: 16px;
+        font-size: 20px;
         font-weight: 700;
         color: #000000;
     }}
@@ -218,7 +219,7 @@ async fn dashboard() -> Html<String> {
         color: #ff3b30;
     }}
     .price {{
-        font-size: 34px;
+        font-size: 44px;
         font-weight: 900;
         color: #000000;
     }}
@@ -226,17 +227,17 @@ async fn dashboard() -> Html<String> {
         color: #ff3b30;
     }}
     .updated {{
-        font-size: 13px;
+        font-size: 17px;
         font-weight: 600;
         color: #1c1c1e;
-        margin-top: 4px;
+        margin-top: 6px;
     }}
     .footer {{
-        font-size: 12px;
-        color: #8e8e93;
+        font-size: 16px;
+        color: #5c5c62;
         font-weight: 600;
         text-align: center;
-        margin-top: 2px;
+        margin-top: 6px;
     }}
     .hint {{
         font-size: 12px;
