@@ -30,9 +30,9 @@ struct PriceData {
     updated: String,
 }
 
-/// Lädt Tankstellen in Weiterstadt über list.php API.
+/// Lädt die spezifische Lenz Energie Tankstelle in Weiterstadt über list.php API.
 /// Antwortformat: {"ok":true,"stations":[{"id":"...","name":"...","brand":"...","e5":1.779,"e10":1.719,"diesel":1.679,...},...]}
-async fn fetch_weiterstadt_stations(api_key: &str) -> Option<PriceData> {
+async fn fetch_lenz_energie_station(api_key: &str) -> Option<PriceData> {
     let url = format!(
         "{}/list.php?lat={}&lng={}&rad={}&sort=dist&type=all&apikey={}",
         TANKERKOENIG_BASE, WEITERSTADT_LAT, WEITERSTADT_LNG, SEARCH_RADIUS, api_key
@@ -44,14 +44,18 @@ async fn fetch_weiterstadt_stations(api_key: &str) -> Option<PriceData> {
         return None;
     }
     
-    // Nimm die erste (nächste) Tankstelle aus der Liste
+    // Suche nach "Lenz Energie" in der Liste
     let stations = json.get("stations")?.as_array()?;
-    let station = stations.first()?;
+    let station = stations.iter().find(|s| {
+        let name = s.get("name").and_then(|n| n.as_str()).unwrap_or("");
+        let brand = s.get("brand").and_then(|b| b.as_str()).unwrap_or("");
+        name.to_lowercase().contains("lenz") || brand.to_lowercase().contains("lenz")
+    })?;
     
     let name = station.get("name")?.as_str()?.to_string();
     let brand = station.get("brand").and_then(|b| b.as_str()).unwrap_or("");
     let station_name = if brand.is_empty() {
-        name
+        name.clone()
     } else {
         format!("{} {}", brand, name)
     };
@@ -61,7 +65,7 @@ async fn fetch_weiterstadt_stations(api_key: &str) -> Option<PriceData> {
     let diesel = station.get("diesel").and_then(|v| v.as_f64()).unwrap_or(0.0);
     
     Some(PriceData {
-        station_name,
+        station_name: "Lenz Energie — Lenz Energie AG".to_string(),
         e5,
         e10,
         diesel,
@@ -227,14 +231,14 @@ async fn dashboard(request: Request) -> impl IntoResponse {
         .unwrap_or_else(|_| "4f98d489-ed79-46e9-93a9-f0e79ab92add".to_string()); // Fallback API-Key
 
     let default_fallback = PriceData {
-        station_name: "Tankstelle Weiterstadt".to_string(),
+        station_name: "Lenz Energie — Lenz Energie AG".to_string(),
         e5: 0.0,
         e10: 0.0,
         diesel: 0.0,
         updated: "–".to_string(),
     };
     
-    let data = fetch_weiterstadt_stations(&api_key)
+    let data = fetch_lenz_energie_station(&api_key)
         .await
         .unwrap_or(default_fallback);
 
@@ -340,17 +344,17 @@ async fn dashboard(request: Request) -> impl IntoResponse {
         <div class="card">
             <div class="card-header">
                 <h1 class="title-main">Kraftstoffpreis aktuell</h1>
-                <div class="title-sub">Tankstelle Weiterstadt</div>
-            </div>
-
-            <div class="fuel-row">
-                <div class="fuel-label">Super E5</div>
-                <div class="price">{}</div>
+                <div class="title-sub">Lenz Energie — Lenz Energie AG</div>
             </div>
 
             <div class="fuel-row">
                 <div class="fuel-label e10">Super E10</div>
                 <div class="price e10">{}</div>
+            </div>
+
+            <div class="fuel-row">
+                <div class="fuel-label">Super E5</div>
+                <div class="price">{}</div>
             </div>
 
             <div class="fuel-row">
@@ -366,13 +370,13 @@ async fn dashboard(request: Request) -> impl IntoResponse {
 </body>
 </html>
 "#,
-        if data.e5 > 0.0 {
-            format!("{:.2} €", data.e5)
+        if data.e10 > 0.0 {
+            format!("{:.2} €", data.e10)
         } else {
             "– €".to_string()
         },
-        if data.e10 > 0.0 {
-            format!("{:.2} €", data.e10)
+        if data.e5 > 0.0 {
+            format!("{:.2} €", data.e5)
         } else {
             "– €".to_string()
         },
