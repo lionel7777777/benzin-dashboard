@@ -162,7 +162,7 @@ async fn dashboard() -> Html<String> {
     body {{
         margin: 0;
         font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-        background: radial-gradient(circle at top, #ffffff 0%, #f2f2f7 40%, #e5e5ea 100%);
+        background: radial-gradient(circle at top, #ffffff 0%, #f2f2f7 40%, #d1d1d6 100%);
         display: flex;
         justify-content: center;
         align-items: center;
@@ -178,37 +178,30 @@ async fn dashboard() -> Html<String> {
         gap: 16px;
     }}
     .card {{
-        background: rgba(255, 255, 255, 0.7);
-        backdrop-filter: blur(24px);
-        -webkit-backdrop-filter: blur(24px);
+        background: rgba(255, 255, 255, 0.55);
+        backdrop-filter: blur(30px) saturate(160%);
+        -webkit-backdrop-filter: blur(30px) saturate(160%);
         border-radius: 28px;
         padding: 20px 22px;
-        box-shadow: 0 18px 40px rgba(0,0,0,0.16);
-        border: 1px solid rgba(255, 255, 255, 0.6);
+        box-shadow: 0 22px 50px rgba(0,0,0,0.28);
+        border: 1px solid rgba(255, 255, 255, 0.9);
         text-align: center;
     }}
     .card-header {{
         padding-bottom: 4px;
     }}
     .title-main {{
-        font-size: 24px;
-        font-weight: 800;
-        letter-spacing: 0.02em;
+        font-size: 26px;
+        font-weight: 900;
+        letter-spacing: 0.03em;
         margin: 0;
-        color: #111111;
+        color: #000000;
     }}
     .title-sub {{
-        font-size: 15px;
-        font-weight: 600;
+        font-size: 16px;
+        font-weight: 700;
         margin-top: 6px;
-        color: #3a3a3c;
-    }}
-    .station {{
-        font-size: 13px;
-        font-weight: 500;
-        color: #8e8e93;
-        margin-top: 10px;
-        margin-bottom: 18px;
+        color: #1c1c1e;
     }}
     .fuel-row {{
         display: flex;
@@ -218,32 +211,32 @@ async fn dashboard() -> Html<String> {
     }}
     .fuel-label {{
         font-size: 16px;
-        font-weight: 600;
-        color: #1c1c1e;
+        font-weight: 700;
+        color: #000000;
     }}
     .fuel-label.e10 {{
         color: #ff3b30;
     }}
     .price {{
-        font-size: 32px;
-        font-weight: 800;
-        color: #111111;
+        font-size: 34px;
+        font-weight: 900;
+        color: #000000;
     }}
     .price.e10 {{
         color: #ff3b30;
     }}
     .updated {{
         font-size: 13px;
-        font-weight: 500;
-        color: #3a3a3c;
-        margin-top: 8px;
+        font-weight: 600;
+        color: #1c1c1e;
+        margin-top: 4px;
     }}
     .footer {{
         font-size: 12px;
         color: #8e8e93;
-        font-weight: 500;
+        font-weight: 600;
         text-align: center;
-        margin-top: 4px;
+        margin-top: 2px;
     }}
     .hint {{
         font-size: 12px;
@@ -258,7 +251,6 @@ async fn dashboard() -> Html<String> {
             <div class="card-header">
                 <h1 class="title-main">Kraftstoffpreis aktuell</h1>
                 <div class="title-sub">Tankstelle Weiterstadt</div>
-                <div class="station">Quelle: {}</div>
             </div>
 
             <div class="fuel-row">
@@ -277,15 +269,13 @@ async fn dashboard() -> Html<String> {
             </div>
         </div>
         <div class="card">
-            <div class="updated">Stand: {} · Aktualisierung alle 60 s</div>
-            {}
+            <div class="updated">Zuletzt aktualisiert: {}</div>
             <div class="footer">developed by Lionel</div>
         </div>
     </div>
 </body>
 </html>
 "#,
-        data.station_name,
         if data.e5 > 0.0 {
             format!("{:.2} €", data.e5)
         } else {
@@ -302,7 +292,7 @@ async fn dashboard() -> Html<String> {
             "– €".to_string()
         },
         data.updated,
-        config_hint
+        // config_hint entfernt, da Credits-Blase nur Zeitstempel + developed by enthält
     ))
 }
 
