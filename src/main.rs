@@ -1,6 +1,4 @@
-use axum::{extract::Form, extract::Request, response::{Html, Redirect, IntoResponse}, routing::{get, post}, Router};
-use axum::http::{HeaderMap, HeaderValue, header::SET_COOKIE};
-use serde::Deserialize;
+use axum::{response::Html, response::IntoResponse, routing::get, Router};
 use serde_json::Value;
 use std::env;
 use std::time::Duration;
@@ -15,9 +13,11 @@ fn http_client() -> reqwest::Client {
         .unwrap_or_else(|_| reqwest::Client::new())
 }
 
-const BENZINPREIS_AKTUELL_URL: &str =
-    "https://benzinpreis-aktuell.de/api.v2.php?data=nationwide&apikey";
 const TANKERKOENIG_BASE: &str = "https://creativecommons.tankerkoenig.de/json";
+// Weiterstadt, Hessen Koordinaten: 49.91°N, 8.58°E
+const WEITERSTADT_LAT: &str = "49.91";
+const WEITERSTADT_LNG: &str = "8.58";
+const SEARCH_RADIUS: &str = "5"; // 5 km Radius
 
 /// Einheitliches Ergebnis für die Anzeige (von beliebiger API).
 struct PriceData {
@@ -28,89 +28,42 @@ struct PriceData {
     updated: String,
 }
 
-/// Kostenlose API: Bundesweite Durchschnittspreise (ohne API-Key).
-/// Antwortformat: {"date":"2026-02-20 18:50:01","super":"1.813","e10":"1.756","diesel":"1.714"}
-async fn fetch_benzinpreis_aktuell() -> Option<PriceData> {
-    let resp = http_client().get(BENZINPREIS_AKTUELL_URL).send().await.ok()?;
-    let json: Value = resp.json().await.ok()?;
-    let e5 = json
-        .get("super")
-        .and_then(|v| v.as_str())
-        .and_then(|s| s.parse::<f64>().ok())
-        .unwrap_or(0.0);
-    let e10 = json
-        .get("e10")
-        .and_then(|v| v.as_str())
-        .and_then(|s| s.parse::<f64>().ok())
-        .unwrap_or(0.0);
-    let diesel = json
-        .get("diesel")
-        .and_then(|v| v.as_str())
-        .and_then(|s| s.parse::<f64>().ok())
-        .unwrap_or(0.0);
-    let updated = json
-        .get("date")
-        .and_then(|v| v.as_str())
-        .unwrap_or("–")
-        .to_string();
-    Some(PriceData {
-        station_name: "Bundesweite Durchschnittspreise".to_string(),
-        e5,
-        e10,
-        diesel,
-        updated,
-    })
-}
-
-/// Lädt Name der Tankstelle (detail.php).
-async fn fetch_station_name(api_key: &str, station_id: &str) -> Option<String> {
+/// Lädt Tankstellen in Weiterstadt über list.php API.
+/// Antwortformat: {"ok":true,"stations":[{"id":"...","name":"...","brand":"...","e5":1.779,"e10":1.719,"diesel":1.679,...},...]}
+async fn fetch_weiterstadt_stations(api_key: &str) -> Option<PriceData> {
     let url = format!(
-        "{}/detail.php?id={}&apikey={}",
-        TANKERKOENIG_BASE, station_id, api_key
+        "{}/list.php?lat={}&lng={}&rad={}&sort=dist&type=all&apikey={}",
+        TANKERKOENIG_BASE, WEITERSTADT_LAT, WEITERSTADT_LNG, SEARCH_RADIUS, api_key
     );
     let resp = http_client().get(&url).send().await.ok()?;
     let json: Value = resp.json().await.ok()?;
-    let station = json.get("station")?;
-    let name = station.get("name")?.as_str()?;
-    let brand = station.get("brand").and_then(|b| b.as_str()).unwrap_or("");
-    let label = if brand.is_empty() {
-        name.to_string()
-    } else {
-        format!("{} {}", brand, name)
-    };
-    Some(label)
-}
-
-/// Lädt aktuelle Preise (prices.php): (e5, e10, diesel).
-async fn fetch_tankerkoenig_prices(api_key: &str, station_id: &str) -> Option<(f64, f64, f64)> {
-    let url = format!(
-        "{}/prices.php?ids={}&apikey={}",
-        TANKERKOENIG_BASE, station_id, api_key
-    );
-    let resp = http_client().get(&url).send().await.ok()?;
-    let json: Value = resp.json().await.ok()?;
+    
     if !json.get("ok")?.as_bool()? {
         return None;
     }
-    let prices = json.get("prices")?.get(station_id)?;
-    let e5 = prices.get("e5").and_then(|v| v.as_f64()).unwrap_or(0.0);
-    let e10 = prices.get("e10").and_then(|v| v.as_f64()).unwrap_or(0.0);
-    let diesel = prices.get("diesel").and_then(|v| v.as_f64()).unwrap_or(0.0);
-    Some((e5, e10, diesel))
-}
-
-/// Tankerkönig: Preise + Name einer konkreten Tankstelle (später nutzbar).
-async fn fetch_tankerkoenig(api_key: &str, station_id: &str) -> Option<PriceData> {
-    let name = fetch_station_name(api_key, station_id)
-        .await
-        .unwrap_or_else(|| "Meine Tankstelle".to_string());
-    let (e5, e10, diesel) = fetch_tankerkoenig_prices(api_key, station_id).await?;
+    
+    // Nimm die erste (nächste) Tankstelle aus der Liste
+    let stations = json.get("stations")?.as_array()?;
+    let station = stations.first()?;
+    
+    let name = station.get("name")?.as_str()?.to_string();
+    let brand = station.get("brand").and_then(|b| b.as_str()).unwrap_or("");
+    let station_name = if brand.is_empty() {
+        name
+    } else {
+        format!("{} {}", brand, name)
+    };
+    
+    let e5 = station.get("e5").and_then(|v| v.as_f64()).unwrap_or(0.0);
+    let e10 = station.get("e10").and_then(|v| v.as_f64()).unwrap_or(0.0);
+    let diesel = station.get("diesel").and_then(|v| v.as_f64()).unwrap_or(0.0);
+    
     Some(PriceData {
-        station_name: name,
+        station_name,
         e5,
         e10,
         diesel,
-        updated: "Live (Tankerkönig)".to_string(),
+        updated: "Live".to_string(),
     })
 }
 
@@ -119,186 +72,21 @@ async fn health() -> impl IntoResponse {
     (axum::http::StatusCode::OK, "ok")
 }
 
-#[derive(Deserialize)]
-struct LoginForm {
-    password: String,
-}
+async fn dashboard() -> Html<String> {
+    let api_key = env::var("TANKERKOENIG_API_KEY")
+        .unwrap_or_else(|_| "4f98d489-ed79-46e9-93a9-f0e79ab92add".to_string()); // Fallback API-Key
 
-/// Prüft ob der Nutzer authentifiziert ist (Cookie gesetzt).
-fn is_authenticated(headers: &HeaderMap) -> bool {
-    headers.get_all("cookie")
-        .iter()
-        .any(|h| {
-            h.to_str()
-                .unwrap_or("")
-                .contains("auth_token=authenticated")
-        })
-}
-
-/// Erstellt einen Set-Cookie Header für die Authentifizierung (läuft sehr lange ab).
-fn create_auth_cookie_header() -> HeaderValue {
-    // Cookie: auth_token=authenticated; Path=/; Max-Age=315360000; HttpOnly; SameSite=Lax
-    HeaderValue::from_str("auth_token=authenticated; Path=/; Max-Age=315360000; HttpOnly; SameSite=Lax")
-        .unwrap_or_else(|_| HeaderValue::from_static("auth_token=authenticated"))
-}
-
-/// Login-Seite (wird angezeigt wenn nicht authentifiziert).
-fn login_page() -> Html<String> {
-    Html(format!(r#"
-<!DOCTYPE html>
-<html lang="de">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Login - Kraftstoff Dashboard</title>
-<style>
-    body {{
-        margin: 0;
-        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-        background: radial-gradient(ellipse at 50% 20%, #faf5ff 0%, #f0e8ff 50%, #e6d5ff 100%);
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        min-height: 100vh;
-        padding: 28px;
-        color: #111827;
-    }}
-    .container {{
-        width: 420px;
-        max-width: 100%;
-    }}
-    .card {{
-        background: rgba(255, 255, 255, 0.38);
-        backdrop-filter: blur(42px) saturate(180%);
-        -webkit-backdrop-filter: blur(42px) saturate(180%);
-        border-radius: 32px;
-        padding: 40px 30px;
-        box-shadow: 0 28px 60px rgba(0,0,0,0.35),
-                    inset 0 1px 0 rgba(255,255,255,0.85);
-        border: 1px solid rgba(255, 255, 255, 0.75);
-        text-align: center;
-    }}
-    h1 {{
-        font-size: 32px;
-        font-weight: 900;
-        letter-spacing: 0.03em;
-        margin: 0 0 20px 0;
-        color: #000000;
-    }}
-    .subtitle {{
-        font-size: 18px;
-        font-weight: 600;
-        color: #5c5c62;
-        margin-bottom: 30px;
-    }}
-    form {{
-        display: flex;
-        flex-direction: column;
-        gap: 20px;
-    }}
-    input[type="password"] {{
-        width: 100%;
-        padding: 16px 20px;
-        font-size: 18px;
-        font-weight: 600;
-        border: 2px solid rgba(0,0,0,0.1);
-        border-radius: 16px;
-        background: rgba(255,255,255,0.6);
-        backdrop-filter: blur(10px);
-        box-sizing: border-box;
-        font-family: inherit;
-    }}
-    input[type="password"]:focus {{
-        outline: none;
-        border-color: #007AFF;
-        background: rgba(255,255,255,0.8);
-    }}
-    button {{
-        width: 100%;
-        padding: 18px;
-        font-size: 20px;
-        font-weight: 700;
-        color: white;
-        background: #007AFF;
-        border: none;
-        border-radius: 16px;
-        cursor: pointer;
-        transition: background 0.2s;
-    }}
-    button:hover {{
-        background: #0051D5;
-    }}
-    button:active {{
-        transform: scale(0.98);
-    }}
-</style>
-</head>
-<body>
-    <div class="container">
-        <div class="card">
-            <h1>Kraftstoff Dashboard</h1>
-            <div class="subtitle">Bitte Passwort eingeben</div>
-            <form method="POST" action="/login">
-                <input type="password" name="password" placeholder="Passwort" required autofocus>
-                <button type="submit">Anmelden</button>
-            </form>
-        </div>
-    </div>
-</body>
-</html>
-"#))
-}
-
-/// Login-Handler: prüft Passwort und setzt Cookie.
-async fn login(Form(form): Form<LoginForm>) -> impl IntoResponse {
-    let expected_password = env::var("DASHBOARD_PASSWORD")
-        .unwrap_or_else(|_| "benzin2024".to_string()); // Fallback für lokale Tests
-    
-    if form.password == expected_password {
-        let mut headers = HeaderMap::new();
-        headers.insert(SET_COOKIE, create_auth_cookie_header());
-        (headers, Redirect::to("/")).into_response()
-    } else {
-        Html("<html><body><h1>Falsches Passwort</h1><a href='/'>Zurück</a></body></html>".to_string()).into_response()
-    }
-}
-
-async fn dashboard(request: Request) -> impl IntoResponse {
-    // Wenn nicht authentifiziert: Login-Seite zeigen
-    if !is_authenticated(request.headers()) {
-        return login_page().into_response();
-    }
-
-    let api_key = env::var("TANKERKOENIG_API_KEY").unwrap_or_default();
-    let station_id = env::var("TANKERKOENIG_STATION_ID").unwrap_or_default();
-
-    // Wenn Tankerkönig konfiguriert ist: konkrete Tankstelle; sonst: kostenlose Bundesdurchschnitte
     let default_fallback = PriceData {
-        station_name: "Bundesweite Durchschnittspreise".to_string(),
+        station_name: "Tankstelle Weiterstadt".to_string(),
         e5: 0.0,
         e10: 0.0,
         diesel: 0.0,
         updated: "–".to_string(),
     };
-    let data = if !api_key.is_empty() && !station_id.is_empty() {
-        if let Some(d) = fetch_tankerkoenig(&api_key, &station_id).await {
-            d
-        } else {
-            fetch_benzinpreis_aktuell()
-                .await
-                .unwrap_or(default_fallback)
-        }
-    } else {
-        fetch_benzinpreis_aktuell()
-            .await
-            .unwrap_or(default_fallback)
-    };
-
-    let config_hint = if api_key.is_empty() || station_id.is_empty() {
-        r#"<div class="hint">Optional: TANKERKOENIG_API_KEY + TANKERKOENIG_STATION_ID setzen für Preise deiner Tankstelle.</div>"#.to_string()
-    } else {
-        String::new()
-    };
+    
+    let data = fetch_weiterstadt_stations(&api_key)
+        .await
+        .unwrap_or(default_fallback);
 
     Html(format!(
         r#"
@@ -444,16 +232,13 @@ async fn dashboard(request: Request) -> impl IntoResponse {
             "– €".to_string()
         },
         data.updated,
-        // config_hint entfernt, da Credits-Blase nur Zeitstempel + developed by enthält
     ))
-    .into_response()
 }
 
 #[tokio::main]
 async fn main() {
     let app = Router::new()
         .route("/", get(dashboard))
-        .route("/login", post(login))
         .route("/health", get(health))
         .route("/kaithhealth", get(health)); // von Leapcell beim Start abgefragt
 
