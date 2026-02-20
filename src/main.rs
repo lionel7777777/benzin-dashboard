@@ -1,4 +1,6 @@
-use axum::{response::Html, response::IntoResponse, routing::get, Router};
+use axum::{extract::Form, extract::Request, response::{Html, Redirect, IntoResponse}, routing::{get, post}, Router};
+use axum::http::{HeaderMap, HeaderValue, header::SET_COOKIE};
+use serde::Deserialize;
 use serde_json::Value;
 use std::env;
 use std::time::Duration;
@@ -72,7 +74,155 @@ async fn health() -> impl IntoResponse {
     (axum::http::StatusCode::OK, "ok")
 }
 
-async fn dashboard() -> Html<String> {
+#[derive(Deserialize)]
+struct LoginForm {
+    password: String,
+}
+
+/// Prüft ob der Nutzer authentifiziert ist (Cookie gesetzt).
+fn is_authenticated(headers: &HeaderMap) -> bool {
+    headers.get_all("cookie")
+        .iter()
+        .any(|h| {
+            h.to_str()
+                .unwrap_or("")
+                .contains("auth_token=authenticated")
+        })
+}
+
+/// Erstellt einen Set-Cookie Header für die Authentifizierung (läuft sehr lange ab).
+fn create_auth_cookie_header() -> HeaderValue {
+    // Cookie: auth_token=authenticated; Path=/; Max-Age=315360000; HttpOnly; SameSite=Lax
+    HeaderValue::from_str("auth_token=authenticated; Path=/; Max-Age=315360000; HttpOnly; SameSite=Lax")
+        .unwrap_or_else(|_| HeaderValue::from_static("auth_token=authenticated"))
+}
+
+/// Login-Seite (wird angezeigt wenn nicht authentifiziert).
+fn login_page() -> Html<String> {
+    Html(format!(r#"
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Login - Kraftstoff Dashboard</title>
+<style>
+    body {{
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        background: radial-gradient(ellipse at 50% 20%, #faf5ff 0%, #f0e8ff 50%, #e6d5ff 100%);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        padding: 28px;
+        color: #111827;
+    }}
+    .container {{
+        width: 420px;
+        max-width: 100%;
+    }}
+    .card {{
+        background: rgba(255, 255, 255, 0.38);
+        backdrop-filter: blur(42px) saturate(180%);
+        -webkit-backdrop-filter: blur(42px) saturate(180%);
+        border-radius: 32px;
+        padding: 40px 30px;
+        box-shadow: 0 28px 60px rgba(0,0,0,0.35),
+                    inset 0 1px 0 rgba(255,255,255,0.85);
+        border: 1px solid rgba(255, 255, 255, 0.75);
+        text-align: center;
+    }}
+    h1 {{
+        font-size: 32px;
+        font-weight: 900;
+        letter-spacing: 0.03em;
+        margin: 0 0 20px 0;
+        color: #000000;
+    }}
+    .subtitle {{
+        font-size: 18px;
+        font-weight: 600;
+        color: #5c5c62;
+        margin-bottom: 30px;
+    }}
+    form {{
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+    }}
+    input[type="password"] {{
+        width: 100%;
+        padding: 16px 20px;
+        font-size: 18px;
+        font-weight: 600;
+        border: 2px solid rgba(0,0,0,0.1);
+        border-radius: 16px;
+        background: rgba(255,255,255,0.6);
+        backdrop-filter: blur(10px);
+        box-sizing: border-box;
+        font-family: inherit;
+    }}
+    input[type="password"]:focus {{
+        outline: none;
+        border-color: #007AFF;
+        background: rgba(255,255,255,0.8);
+    }}
+    button {{
+        width: 100%;
+        padding: 18px;
+        font-size: 20px;
+        font-weight: 700;
+        color: white;
+        background: #007AFF;
+        border: none;
+        border-radius: 16px;
+        cursor: pointer;
+        transition: background 0.2s;
+    }}
+    button:hover {{
+        background: #0051D5;
+    }}
+    button:active {{
+        transform: scale(0.98);
+    }}
+</style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <h1>Kraftstoff Dashboard</h1>
+            <div class="subtitle">Bitte Passwort eingeben</div>
+            <form method="POST" action="/login">
+                <input type="password" name="password" placeholder="Passwort" required autofocus>
+                <button type="submit">Anmelden</button>
+            </form>
+        </div>
+    </div>
+</body>
+</html>
+"#))
+}
+
+/// Login-Handler: prüft Passwort und setzt Cookie.
+async fn login(Form(form): Form<LoginForm>) -> impl IntoResponse {
+    let expected_password = env::var("DASHBOARD_PASSWORD")
+        .unwrap_or_else(|_| "911930".to_string()); // Standard-Passwort
+    
+    if form.password == expected_password {
+        let mut headers = HeaderMap::new();
+        headers.insert(SET_COOKIE, create_auth_cookie_header());
+        (headers, Redirect::to("/")).into_response()
+    } else {
+        Html("<html><body><h1>Falsches Passwort</h1><a href='/'>Zurück</a></body></html>".to_string()).into_response()
+    }
+}
+
+async fn dashboard(request: Request) -> impl IntoResponse {
+    // Wenn nicht authentifiziert: Login-Seite zeigen
+    if !is_authenticated(request.headers()) {
+        return login_page().into_response();
+    }
     let api_key = env::var("TANKERKOENIG_API_KEY")
         .unwrap_or_else(|_| "4f98d489-ed79-46e9-93a9-f0e79ab92add".to_string()); // Fallback API-Key
 
@@ -233,12 +383,14 @@ async fn dashboard() -> Html<String> {
         },
         data.updated,
     ))
+    .into_response()
 }
 
 #[tokio::main]
 async fn main() {
     let app = Router::new()
         .route("/", get(dashboard))
+        .route("/login", post(login))
         .route("/health", get(health))
         .route("/kaithhealth", get(health)); // von Leapcell beim Start abgefragt
 
