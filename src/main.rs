@@ -162,7 +162,7 @@ async fn dashboard() -> Html<String> {
     body {{
         margin: 0;
         font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-        background: radial-gradient(ellipse at 50% 20%, #e8e8ed 0%, #c7c7cc 50%, #a0a0a8 100%);
+        background: radial-gradient(ellipse at 50% 20%, #faf5ff 0%, #f0e8ff 50%, #e6d5ff 100%);
         display: flex;
         justify-content: center;
         align-items: center;
